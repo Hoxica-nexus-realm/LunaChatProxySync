@@ -1,0 +1,4 @@
+sync-channels:
+  - "hoge"
+  - "fuga"
+debug-mode: false
