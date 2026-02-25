@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Hoxica Nexus Realm
 package me.tksn.lunaChatProxySync.util;
 
 import org.bukkit.Bukkit;
