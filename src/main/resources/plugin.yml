@@ -5,6 +5,7 @@ api-version: '1.21'
 authors: [ 'xkf_' ]
 depend:
   - 'LunaChat'
+softdepend:
   - 'LuckPerms'
 commands:
   lcps:

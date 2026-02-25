@@ -10,10 +10,6 @@ import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
 import com.google.common.base.Strings;
 import me.tksn.lunaChatProxySync.util.*;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.LuckPermsProvider;
-import net.luckperms.api.cacheddata.CachedMetaData;
-import net.luckperms.api.model.user.User;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,19 +23,20 @@ import java.util.Objects;
 
 public final class LunaChatProxySync extends JavaPlugin implements PluginMessageListener{
     private ConfigurationManager configurationManager;
-    private LuckPerms lpApi;
     private LunaChatAPI lunaChatAPI;
     private LunaChatConfigManager lunaChatConfigManager;
+    private LuckPermsUtil luckPermsUtil;
     private JapanizeType japanizeType;
     private NGWordReplacer ngWordReplacer;
     private String globalChannel;
     private String globalMarker;
     private String noneJapanizeMarker;
+    private boolean isLuckPermsAvailable;
     @Override
     public void onEnable(){
         Plugin lc = getServer().getPluginManager().getPlugin("LunaChat");
         if(lc == null || !lc.isEnabled()){
-            getLogger().warning("LunaChatが検出されないためプラグインは有効になりません");
+            getLogger().warning("LunaChatが検出されないまたは無効のためプラグインは有効になりません");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -47,9 +44,17 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         getServer().getMessenger().registerIncomingPluginChannel(this, "BungeeCord", this);
         this.lunaChatAPI = LunaChatUtil.getLunaChatAPI();
         this.configurationManager = new ConfigurationManager(this,lc);
+        Plugin lp = getServer().getPluginManager().getPlugin("LuckPerms");
+        if(lp == null || !lp.isEnabled()){
+            this.isLuckPermsAvailable = false;
+            getLogger().info("LuckPermsが検出されないまたは無効のため一部機能は利用できません");
+        }else{
+            getLogger().info("LuckPermsを検出しました");
+            this.isLuckPermsAvailable = true;
+            this.luckPermsUtil = new LuckPermsUtil(this,configurationManager);
+        }
         getServer().getPluginManager().registerEvents(new ChatListener(this,this.configurationManager), this);
         this.lunaChatConfigManager = new LunaChatConfigManager(this,lc, configurationManager);
-        this.lpApi = LuckPermsProvider.get();
         this.japanizeType = lunaChatConfigManager.getJapanizeType();
         this.ngWordReplacer = new NGWordReplacer(this.lunaChatConfigManager);
         this.globalChannel = this.lunaChatConfigManager.getGlobalChannel();
@@ -105,6 +110,9 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             configurationManager.asyncReloadConfig(lunaChatConfigManager,ngWordReplacer);
             japanizeType = lunaChatConfigManager.getJapanizeType();
             sender.sendMessage("§b設定を非同期でリロードしました");
+            if(isLuckPermsAvailable){
+                luckPermsUtil.updateDebugStatus(configurationManager);
+            }
             return true;
         }else if(subCmd.equals("help")){
             commandSendHelp(sender);
@@ -147,11 +155,9 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         if(!configurationManager.getSyncChannels().contains(channel.getName())){
             return;
         }
-        User user = lpApi.getUserManager().loadUser(player.getUniqueId()).join();
-        if(user != null){
-            CachedMetaData metaData = user.getCachedData().getMetaData();
-            prefix = metaData.getPrefix();
-            suffix = metaData.getSuffix();
+        if(isLuckPermsAvailable){
+            prefix = luckPermsUtil.getUserPrefix(event.getPlayer());
+            suffix = luckPermsUtil.getUserSuffix(event.getPlayer());
         }
         String message = LunaChatUtil.getFormattedMessage(channel,player.getName(),rawMessage,prefix,suffix);
         messageBytes.writeUTF(message);
