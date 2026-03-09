@@ -30,7 +30,6 @@
 ## 📋 必須プラグイン（バックエンドサーバー）
 
 - [LunaChat](https://github.com/ucchyocean/LunaChat)
-- [LuckPerms](https://github.com/LuckPerms/LuckPerms)
 
 > **プロキシサーバー（BungeeCord）には追加のプラグインは不要です。**
 
