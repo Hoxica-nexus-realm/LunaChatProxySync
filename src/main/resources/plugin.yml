@@ -7,13 +7,39 @@ depend:
   - 'LunaChat'
 softdepend:
   - 'LuckPerms'
+load: POSTWORLD
 commands:
   lcps:
     description: メインコマンド
     usage: /lcps <reload|help>
     permission: lcps.use
     permission-message: "§cYou don't have permissions to execute this command"
+  tell:
+    description: Cross-server tell command
+    usage: /<command> <player> <message>
+    aliases:
+      - t
+    permission: lcps.tell
+  message:
+    description: Cross-server message command
+    usage: /<command> <player> <message>
+    aliases:
+      - msg
+      - m
+    permission: lcps.message
+  reply:
+    description: Cross-server message command
+    usage: /<command> [<message>]
+    aliases:
+      - r
+    permission: lcps.reply
 permissions:
-  lpcs.use:
+  lcps.use:
     description: メインコマンドの権限
     default: op
+  lcps.tell:
+    default: true
+  lcps.message:
+    default: true
+  lcps.reply:
+    default: true
