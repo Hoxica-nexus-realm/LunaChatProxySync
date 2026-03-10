@@ -11,6 +11,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.base.Strings;
 import me.tksn.lunaChatProxySync.util.*;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
@@ -192,6 +193,14 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
     }
 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args){
+        if(sender == null){
+            if(directMessageCommands.contains(command.getName())){
+                sendDirectMessageCommandHelp(null,command.getName());
+            }else {
+                commandSendHelp(null);
+            }
+            return true;
+        }
         if(command.getName().equalsIgnoreCase("reply") || command.getName().equalsIgnoreCase("r")){
             String currentReplyTarget = replyManager.getCurrentReplyTarget(sender.getName());
             if(args.length < 1) {
@@ -399,16 +408,24 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
     }
 
     private void commandSendHelp(CommandSender sender){
-        sender.sendMessage("§b=== LunaChatProxySync ===");
-        sender.sendMessage("§b/lcps reload - 構成をリロードします");
-        sender.sendMessage("§b/lcps help - このヘルプを表示します");
+        if(sender == null){
+            Bukkit.getConsoleSender().sendMessage(ChatColor.AQUA + "=== LunaChatProxySync ===");
+            Bukkit.getConsoleSender().sendMessage(ChatColor.AQUA + "/lcps reload - 構成をリロードします");
+            Bukkit.getConsoleSender().sendMessage(ChatColor.AQUA + "/lcps help - このヘルプを表示します");
+        }else {
+            sender.sendMessage("§b=== LunaChatProxySync ===");
+            sender.sendMessage("§b/lcps reload - 構成をリロードします");
+            sender.sendMessage("§b/lcps help - このヘルプを表示します");
+        }
     }
 
     private void sendDirectMessageCommandHelp(Player sender, String commandName){
-        if(commandName.equals("message") || commandName.equals("msg") || commandName.equals("m")){
-            sender.sendMessage("§a使用法: /lunachatproxysync:" + commandName + " (target) [message]");
-        }else if(commandName.equals("tell") || commandName.equals("t")){
-            sender.sendMessage("§a使用法: /lunachatproxysync:" + commandName + " (target) [message]");
+        if(commandName.equals("message") || commandName.equals("msg") || commandName.equals("m") || commandName.equals("tell") || commandName.equals("t")){
+            if(sender == null){
+                Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "使用法: /lunachatproxysync:" + commandName + " (target) [message]");
+            }else {
+                sender.sendMessage("§a使用法: /lunachatproxysync:" + commandName + " (target) [message]");
+            }
         }
     }
 
