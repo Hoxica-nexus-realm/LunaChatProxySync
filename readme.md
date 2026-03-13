@@ -55,7 +55,7 @@ discord:
   allow-mentions: false
 advanced:
   debug-mode: false
-chat-event-priority: LOWEST
+  chat-event-priority: LOWEST
 ```
 
 ### 設定項目の説明
