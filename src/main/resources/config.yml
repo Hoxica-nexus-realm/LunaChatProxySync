@@ -1,4 +1,22 @@
+# sync-channels - サーバー間で同期するチャンネルをリスト形式で記述します
 sync-channels:
   - "hoge"
   - "fuga"
-debug-mode: false
+# discord - Discordへのチャット転送についての設定です
+discord:
+  # Discordへのチャット転送の有効/無効を切り替えます
+  enabled: false
+  # 転送したいチャンネルとそのチャンネルに割り当てるWebhookのURLを記述します
+  webhooks: {"hoge":["webhookUrl1","webhookUrl2"],"fuga":["webhookUrl"]}
+  # Webhook転送時に@everyone, @here, およびすべてのロール/ユーザーへのメンションを可能にするかを切り替えます
+  allow-mentions: false
+# advanced - 高度な設定です
+advanced:
+  # デバッグモードの有効/無効を切り替えます
+  # 有効にするとコンソールにデバッグ用のログが送信されます
+  enable-debug-mode: false
+  # チャットイベントを処理する順番を設定します
+  # LunaChatよりも早い段階でLunaChatProxySyncがチャットイベントを取得する必要があります
+  # 他のプラグインと問題を起こしている場合は変えてください
+  # (順序: LOWEST -> LOW -> NORMAL -> HIGH -> HIGHEST -> MONITOR)
+  chat-event-priority: LOWEST

@@ -12,20 +12,24 @@ import com.google.common.base.Strings;
 import me.tksn.lunaChatProxySync.util.*;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
-import org.bukkit.command.PluginCommand;
+import org.bukkit.command.*;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.TabCompleteEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
@@ -46,6 +50,12 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
     private List<String> proxyPlayers = new ArrayList<>();
     private CommandTabCompleter commandTabCompleter;
     private ReplyManager replyManager;
+    private DiscordWebhookManager discordWebhookManager;
+    private Listener chatListener;
+    private Listener tabCompleteListener;
+    private Listener playerQuitListener;
+    private Listener directMessageCommandListener;
+    private final Pattern nonJapanizedPattern = Pattern.compile("[^a-zA-Z0-9]{10,}");
     @Override
     public void onEnable(){
         Plugin lc = getServer().getPluginManager().getPlugin("LunaChat");
@@ -67,8 +77,6 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             this.isLuckPermsAvailable = true;
             this.luckPermsUtil = new LuckPermsUtil(this,configurationManager);
         }
-        getServer().getPluginManager().registerEvents(new ChatListener(this,this.configurationManager), this);
-        getServer().getPluginManager().registerEvents(new DirectMessageCommandListener(this,this.configurationManager), this);
         this.lunaChatConfigManager = new LunaChatConfigManager(this,lc, configurationManager);
         this.japanizeType = lunaChatConfigManager.getJapanizeType();
         this.ngWordReplacer = new NGWordReplacer(this.lunaChatConfigManager);
@@ -78,7 +86,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         this.clickableFormatter = new ClickableFormatter();
         this.commandTabCompleter = new CommandTabCompleter(this,configurationManager);
         this.replyManager = new ReplyManager(this,configurationManager);
-        getServer().getPluginManager().registerEvents(new PlayerQuitListener(this,this.configurationManager,this.replyManager),this);
+        this.discordWebhookManager = new DiscordWebhookManager(this,configurationManager);
         getServer().getScheduler().runTaskTimer(this, () -> {
             Player player = getServer().getOnlinePlayers().stream().findAny().orElse(null);
             if(player != null){
@@ -90,6 +98,26 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             getLogger().info("[Debug] 【タスク詳細】開始: 20Tick (1Sec)後, 間隔: 300Tick(15Sec)ごと, 内容: プロキシ上のプレイヤーの取得");
         }
         getServer().getScheduler().runTask(this, () -> {
+            try{
+                Field commandMapField = getServer().getClass().getDeclaredField("commandMap");
+                commandMapField.setAccessible(true);
+                SimpleCommandMap commandMap = (SimpleCommandMap) commandMapField.get(getServer());
+                PluginCommand tellCommand = getCommand("tell");
+                PluginCommand messageCommand = getCommand("message");
+                String pluginName = getName().toLowerCase();
+                if(tellCommand != null){
+                    commandMap.register(pluginName, tellCommand);
+                }
+                if(messageCommand != null){
+                    commandMap.register(pluginName, messageCommand);
+                }
+                for(Player player : Bukkit.getOnlinePlayers()){
+                    player.updateCommands();
+                }
+            }catch (Exception e){
+                getLogger().warning("コマンド上書き時にエラーが発生しました");
+                e.printStackTrace();
+            }
             for (String directMessageCommand : directMessageCommands) {
                 PluginCommand currentCommand = getCommand(directMessageCommand);
                 if (currentCommand != null) {
@@ -107,6 +135,10 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
                 }
             }
         });
+        registerAsyncPlayerChatEvent(configurationManager);
+        registerTabCompleteEvent(configurationManager);
+        registerPlayerQuitEvent(configurationManager);
+        registerPlayerCommandPreprocessEvent(configurationManager);
     }
 
     @Override
@@ -140,10 +172,20 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             String prefix = Strings.emptyToNull(msgin.readUTF());
             String suffix = Strings.emptyToNull(msgin.readUTF());
             boolean userJapanized = msgin.readUTF().equals("yes");
+            long sentTime = msgin.readLong();
             if(configurationManager.getDebugMode()){
-                getLogger().info("[Debug] 【受信内容】メッセージ: " + message + ", チャンネル名: " + channelName + ", 生のメッセージ: " + rawMessage);
+                getLogger().info("[Debug] 【受信内容】メッセージ: " + message + ", チャンネル名: " + channelName + ", 生のメッセージ: " + rawMessage + ", 送信時刻: " + sentTime);
             }
-            PublishMessage.publish(configurationManager, lunaChatAPI, lunaChatConfigManager, channelName, playerName, rawMessage, prefix, suffix, this, userJapanized, japanizeType, ngWordReplacer, clickableFormatter);
+            if(System.currentTimeMillis() - sentTime > 15000){
+                if(configurationManager.getDebugMode()){
+                    getLogger().info("[Debug] 送信時刻から15秒以上経過しているためこのメッセージは破棄されました");
+                }
+                return;
+            }
+            PublishMessage.publish(configurationManager, lunaChatAPI, lunaChatConfigManager, channelName, playerName, rawMessage, prefix, suffix, this, userJapanized, japanizeType, ngWordReplacer, clickableFormatter, nonJapanizedPattern);
+            if(configurationManager.getDiscordEnabled()) {
+                PublishMessage.publishDiscordWebhook(configurationManager, lunaChatAPI, lunaChatConfigManager, channelName, playerName, rawMessage, this, userJapanized, japanizeType, ngWordReplacer, discordWebhookManager, nonJapanizedPattern);
+            }
         }else if(subchannel.equals("LunaChatProxySyncPrivate")){
             if(configurationManager.getDebugMode()){
                 getLogger().info("[Debug] PluginMessageのサブチャンネル(プライベート用)が一致しました");
@@ -157,10 +199,17 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             String target = msgin.readUTF();
             String rawMessage = msgin.readUTF();
             boolean userJapanized = msgin.readUTF().equals("yes");
+            long sentTime = msgin.readLong();
             if(configurationManager.getDebugMode()){
-                getLogger().info("[Debug] 【受信内容】送信元: "+ sender + ", 送信先: " + target + ", メッセージ: " + rawMessage + "japanize変換: " + (userJapanized ? "有効" : "無効"));
+                getLogger().info("[Debug] 【受信内容】送信元: "+ sender + ", 送信先: " + target + ", メッセージ: " + rawMessage + "japanize変換: " + (userJapanized ? "有効" : "無効") + ", 送信時刻: " + sentTime);
             }
-            PublishMessage.publishPrivate(configurationManager,lunaChatAPI,lunaChatConfigManager,sender,target,rawMessage,userJapanized,japanizeType,ngWordReplacer,this,clickableFormatter,false);
+            if(System.currentTimeMillis() - sentTime > 15000){
+                if(configurationManager.getDebugMode()){
+                    getLogger().info("[Debug] 送信時刻から15秒以上経過しているためこのメッセージは破棄されました");
+                }
+                return;
+            }
+            PublishMessage.publishPrivate(configurationManager,lunaChatAPI,lunaChatConfigManager,sender,target,rawMessage,userJapanized,japanizeType,ngWordReplacer,this,clickableFormatter,false,nonJapanizedPattern);
         }else if(subchannel.equals("PlayerList")){
             String server = in.readUTF();
             if(configurationManager.getDebugMode()){
@@ -242,7 +291,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
                             return true;
                         }
                         forwardPrivateMessage(getServer().getPlayer(sender.getName()), currentReplyTarget, rawMessage.toString());
-                        PublishMessage.publishPrivate(configurationManager, lunaChatAPI, lunaChatConfigManager, sender.getName(), currentReplyTarget, message, japanized, japanizeType, ngWordReplacer, this, clickableFormatter, true);
+                        PublishMessage.publishPrivate(configurationManager, lunaChatAPI, lunaChatConfigManager, sender.getName(), currentReplyTarget, message, japanized, japanizeType, ngWordReplacer, this, clickableFormatter, true,nonJapanizedPattern);
                         replyManager.setCurrentReplyTarget(senderPlayer.getName(),currentReplyTarget);
                         return true;
                     }
@@ -264,6 +313,8 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             configurationManager.asyncReloadConfig(lunaChatConfigManager,ngWordReplacer);
             japanizeType = lunaChatConfigManager.getJapanizeType();
             replyManager.reloadConfiguration();
+            unregisterAsyncPlayerChatEvent();
+            registerAsyncPlayerChatEvent(configurationManager);
             sender.sendMessage("§b設定を非同期でリロードしました");
             if(isLuckPermsAvailable){
                 luckPermsUtil.updateDebugStatus(configurationManager);
@@ -299,7 +350,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
                     return true;
                 }
                 forwardPrivateMessage(getServer().getPlayer(sender.getName()), args[0], rawMessage.toString());
-                PublishMessage.publishPrivate(configurationManager, lunaChatAPI, lunaChatConfigManager, sender.getName(), args[0], message, japanized, japanizeType, ngWordReplacer, this, clickableFormatter, true);
+                PublishMessage.publishPrivate(configurationManager, lunaChatAPI, lunaChatConfigManager, sender.getName(), args[0], message, japanized, japanizeType, ngWordReplacer, this, clickableFormatter, true,nonJapanizedPattern);
                 replyManager.setCurrentReplyTarget(senderPlayer.getName(),args[0]);
                 return true;
             }
@@ -353,6 +404,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         messageBytes.writeUTF(Objects.requireNonNullElse(prefix, ""));
         messageBytes.writeUTF(Objects.requireNonNullElse(suffix, ""));
         messageBytes.writeUTF(japanized ? "yes" : "no");
+        messageBytes.writeLong(System.currentTimeMillis());
         debugLog = "プレイヤー名: " + player.getName() + ", プレイヤーUUID: " + player.getUniqueId() + ", メッセージ: " + message + ", LunaChatチャンネル名: " + channel.getName() + ", Japanize変換: " + (japanized ? "有効" : "無効") + ", LuckPerms Prefix: " + prefix + ", LuckPerms Suffix: " + suffix;
 
         if(configurationManager.getDebugMode()){
@@ -363,6 +415,11 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         out.write(data);
 
         event.getPlayer().sendPluginMessage(this, "BungeeCord", out.toByteArray());
+        String channelName = channel.getName();
+        String playerName = player.getName();
+        if(configurationManager.getDiscordEnabled()) {
+            PublishMessage.publishDiscordWebhook(configurationManager, lunaChatAPI, lunaChatConfigManager, channelName, playerName, rawMessage, this, japanized, japanizeType, ngWordReplacer, discordWebhookManager, nonJapanizedPattern);
+        }
     }
 
     private void forwardPrivateMessage(Player player, String target, String message){
@@ -384,6 +441,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         messageBytes.writeUTF(target);
         messageBytes.writeUTF(message);
         messageBytes.writeUTF(japanized ? "yes" : "no");
+        messageBytes.writeLong(System.currentTimeMillis());
         if(player != null && player.isOnline()){
             messageBytes.writeUTF(player.getUniqueId().toString());
         }else{
@@ -494,7 +552,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
                                 return;
                             }
                             forwardPrivateMessage(getServer().getPlayer(player.getName()), currentReplyTarget, rawMessage.toString());
-                            PublishMessage.publishPrivate(configurationManager, lunaChatAPI, lunaChatConfigManager, player.getName(), currentReplyTarget, message, japanized, japanizeType, ngWordReplacer, this, clickableFormatter, true);
+                            PublishMessage.publishPrivate(configurationManager, lunaChatAPI, lunaChatConfigManager, player.getName(), currentReplyTarget, message, japanized, japanizeType, ngWordReplacer, this, clickableFormatter, true,nonJapanizedPattern);
                             replyManager.setCurrentReplyTarget(senderPlayer.getName(),currentReplyTarget);
                             return;
                         }
@@ -527,7 +585,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
                 if(message.startsWith(noneJapanizeMarker) && message.length() > 1){
                     message = message.substring(1);
                 }
-                PublishMessage.publishPrivate(configurationManager,lunaChatAPI,lunaChatConfigManager,player.getName(),args[0],message,japanized,japanizeType,ngWordReplacer,this,clickableFormatter,true);
+                PublishMessage.publishPrivate(configurationManager,lunaChatAPI,lunaChatConfigManager,player.getName(),args[0],message,japanized,japanizeType,ngWordReplacer,this,clickableFormatter,true,nonJapanizedPattern);
                 forwardPrivateMessage(player, args[0], rawMessage.toString());
                 replyManager.setCurrentReplyTarget(player.getName(),args[0]);
             }
@@ -552,5 +610,98 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
 
     public void sendDebugMessage(String message){
         getLogger().info("[Debug] " + message);
+    }
+
+    private void registerAsyncPlayerChatEvent(ConfigurationManager configurationManager){
+        EventPriority eventPriority = EventPriority.valueOf(configurationManager.getChatEventPriority());
+        if(chatListener != null){
+            AsyncPlayerChatEvent.getHandlerList().unregister(chatListener);
+        }
+
+        chatListener = new Listener() {};
+        getServer().getPluginManager().registerEvent(AsyncPlayerChatEvent.class, chatListener, eventPriority, ((listener, event) -> {
+            if (event instanceof AsyncPlayerChatEvent asyncPlayerChatEvent) {
+                forwardChat(asyncPlayerChatEvent);
+            }
+        }), this, false);
+        if(configurationManager.getDebugMode()){
+            sendDebugMessage("AsyncPlayerChatEventのリスナーを登録しました");
+            sendDebugMessage("Priority: " + configurationManager.getChatEventPriority());
+        }
+    }
+
+    private void unregisterAsyncPlayerChatEvent(){
+        if(chatListener == null){
+            return;
+        }
+        AsyncPlayerChatEvent.getHandlerList().unregister(chatListener);
+        if(configurationManager.getDebugMode()){
+            sendDebugMessage("AsyncPlayerChatEventに登録していたリスナーを解除しました");
+        }
+    }
+
+    private void registerTabCompleteEvent(ConfigurationManager configurationManager){
+        if(tabCompleteListener != null){
+            return;
+        }
+        tabCompleteListener = new Listener() {};
+        getServer().getPluginManager().registerEvent(TabCompleteEvent.class, tabCompleteListener, EventPriority.HIGHEST, ((listener, event) -> {
+            if (event instanceof TabCompleteEvent tabCompleteEvent) {
+                String buffer = tabCompleteEvent.getBuffer();
+                String[] commandParts = buffer.split(" ", -1);
+                List<String> playersList = proxyPlayers;
+                if(commandParts[0] == null){
+                    return;
+                }
+                if(directMessageCommands.contains(commandParts[0].substring(1).toLowerCase())){
+                    if(commandParts.length >= 2){
+                        String inputArg = commandParts[commandParts.length - 1].toLowerCase();
+                        List<String> suggestArg;
+                        if(inputArg.equals(" ") || inputArg.isEmpty()){
+                            suggestArg = playersList;
+                        }else{
+                            suggestArg = playersList.stream().filter(name -> name.toLowerCase().startsWith(inputArg)).toList();
+                        }
+                        tabCompleteEvent.setCompletions(suggestArg);
+                    }
+                }
+            }
+        }), this, false);
+        if(configurationManager.getDebugMode()){
+            sendDebugMessage("TabCompleteEventのリスナーを登録しました");
+            sendDebugMessage("Priority: HIGHEST");
+        }
+    }
+
+    private void registerPlayerQuitEvent(ConfigurationManager configurationManager){
+        if(playerQuitListener != null){
+            return;
+        }
+        playerQuitListener = new Listener() {};
+        getServer().getPluginManager().registerEvent(PlayerQuitEvent.class, chatListener, EventPriority.LOWEST, ((listener, event) -> {
+            if (event instanceof PlayerQuitEvent playerQuitEvent) {
+                replyManager.removeCurrentReplyTarget(playerQuitEvent.getPlayer().getName());
+            }
+        }), this, false);
+        if(configurationManager.getDebugMode()){
+            sendDebugMessage("PlayerQuitEventのリスナーを登録しました");
+            sendDebugMessage("Priority: LOWEST");
+        }
+    }
+
+    private void registerPlayerCommandPreprocessEvent(ConfigurationManager configurationManager){
+        if(directMessageCommandListener != null){
+            return;
+        }
+        directMessageCommandListener = new Listener() {};
+        getServer().getPluginManager().registerEvent(PlayerCommandPreprocessEvent.class, chatListener, EventPriority.LOWEST, ((listener, event) -> {
+            if (event instanceof PlayerCommandPreprocessEvent playerCommandPreprocessEvent) {
+                directMessageCommand(playerCommandPreprocessEvent);
+            }
+        }), this, false);
+        if(configurationManager.getDebugMode()){
+            sendDebugMessage("PlayerCommandPreprocessEventのリスナーを登録しました");
+            sendDebugMessage("Priority: LOWEST");
+        }
     }
 }

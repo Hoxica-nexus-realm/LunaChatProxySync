@@ -16,10 +16,12 @@ import org.bukkit.plugin.Plugin;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 public class PublishMessage {
-    public static void publish(ConfigurationManager configurationManager, LunaChatAPI lunaChatAPI, LunaChatConfigManager lunaChatConfigManager, String channelName, String playerName, String rawMessage, @Nullable String prefix, @Nullable String suffix, Plugin plugin, boolean userJapanized, JapanizeType japanizeType, NGWordReplacer ngWordReplacer, ClickableFormatter clickableFormatter){
+    public static void publish(ConfigurationManager configurationManager, LunaChatAPI lunaChatAPI, LunaChatConfigManager lunaChatConfigManager, String channelName, String playerName, String rawMessage, @Nullable String prefix, @Nullable String suffix, Plugin plugin, boolean userJapanized, JapanizeType japanizeType, NGWordReplacer ngWordReplacer, ClickableFormatter clickableFormatter, Pattern nonJapanizedPattern){
         if(!configurationManager.getSyncChannels().contains(channelName)) {
             if(configurationManager.getDebugMode()){
                 plugin.getLogger().info("[Debug] チャンネル\"" + channelName + "\"は同期チャンネルリストに含まれていません");
@@ -46,11 +48,21 @@ public class PublishMessage {
             if(userJapanized){
                 if(useNGWordReplace){
                     replacedRawMessage = trimColorCode(rawMessage);
-                    String plainjapanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
-                    japanizedMessage = ngWordReplacer.replaceNGWord(plainjapanizedMessage,"*");
-                }else {
+                    Matcher nonJapanizedMatcher = nonJapanizedPattern.matcher(replacedRawMessage);
+                    if(nonJapanizedMatcher.find()){
+                        japanizedMessage = "";
+                    }else {
+                        String plainjapanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
+                        japanizedMessage = ngWordReplacer.replaceNGWord(plainjapanizedMessage, "*");
+                    }
+                }else{
                     replacedRawMessage = trimColorCode(rawMessage);
-                    japanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
+                    Matcher nonJapanizeMatcher = nonJapanizedPattern.matcher(replacedRawMessage);
+                    if(nonJapanizeMatcher.find()){
+                        japanizedMessage = "";
+                    }else {
+                        japanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
+                    }
                 }
             }
             BaseComponent[] clickableText;
@@ -78,7 +90,7 @@ public class PublishMessage {
         });
     }
 
-    public static void publishPrivate(ConfigurationManager configurationManager, LunaChatAPI lunaChatAPI, LunaChatConfigManager lunaChatConfigManager, String sender, String target, String rawMessage, boolean userJapanized, JapanizeType japanizeType, NGWordReplacer ngWordReplacer, Plugin plugin, ClickableFormatter clickableFormatter, boolean isSelf){
+    public static void publishPrivate(ConfigurationManager configurationManager, LunaChatAPI lunaChatAPI, LunaChatConfigManager lunaChatConfigManager, String sender, String target, String rawMessage, boolean userJapanized, JapanizeType japanizeType, NGWordReplacer ngWordReplacer, Plugin plugin, ClickableFormatter clickableFormatter, boolean isSelf, Pattern nonJapanizePattern){
         boolean useNGWordReplace = !lunaChatConfigManager.getNgWordPattern().isEmpty();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             ComponentBuilder builderA;
@@ -92,11 +104,21 @@ public class PublishMessage {
             if(userJapanized){
                 if(useNGWordReplace){
                     replacedRawMessage = trimColorCode(rawMessage);
-                    String plainjapanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
-                    japanizedMessage = ngWordReplacer.replaceNGWord(plainjapanizedMessage,"*");
+                    Matcher nonJapanizeMatcher = nonJapanizePattern.matcher(replacedRawMessage);
+                    if(nonJapanizeMatcher.find()){
+                        japanizedMessage = "";
+                    }else {
+                        String plainjapanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
+                        japanizedMessage = ngWordReplacer.replaceNGWord(plainjapanizedMessage, "*");
+                    }
                 }else {
                     replacedRawMessage = trimColorCode(rawMessage);
-                    japanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
+                    Matcher nonJapanizedMatcher = nonJapanizePattern.matcher(replacedRawMessage);
+                    if(nonJapanizedMatcher.find()){
+                        japanizedMessage = "";
+                    }else {
+                        japanizedMessage = LunaChatUtil.getJapanized(replacedRawMessage, japanizeType, lunaChatAPI);
+                    }
                 }
             }
             BaseComponent[] clickableText;
@@ -122,11 +144,63 @@ public class PublishMessage {
         });
     }
 
+    public static void publishDiscordWebhook(ConfigurationManager configurationManager, LunaChatAPI lunaChatAPI, LunaChatConfigManager lunaChatConfigManager, String channelName, String playerName, String rawMessage, Plugin plugin, boolean userJapanized, JapanizeType japanizeType, NGWordReplacer ngWordReplacer, DiscordWebhookManager discordWebhookManager, Pattern nonJapanizedPattern){
+        if(!lunaChatAPI.isExistChannel(channelName)){
+            if(configurationManager.getDebugMode()){
+                plugin.getLogger().info("[Debug] チャンネル\"" + channelName + "\"は存在しないためメッセージは送信されませんでした");
+            }
+            return;
+        }
+        Channel channel = lunaChatAPI.getChannel(channelName);
+        boolean useNGWordReplace = !lunaChatConfigManager.getNgWordPattern().isEmpty();
+        Player player = Bukkit.getPlayer(playerName);
+        if(player == null){
+            if(configurationManager.getDebugMode()){
+                plugin.getLogger().info("[Debug] プレイヤー\"" + playerName + "\"はnullであるためWebhookは送信されません");
+            }
+            return;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            String message = trimColorCode(rawMessage);
+            if(useNGWordReplace){
+                message = ngWordReplacer.replaceNGWord(translateColorCode(rawMessage),"*");
+            }
+            String japanizedMessage = "";
+            if(userJapanized){
+                if(useNGWordReplace){
+                    Matcher nonJapanizedMatcher = nonJapanizedPattern.matcher(message);
+                    if(nonJapanizedMatcher.find()){
+                        japanizedMessage = "";
+                    }else {
+                        String plainjapanizedMessage = LunaChatUtil.getJapanized(message, japanizeType, lunaChatAPI);
+                        japanizedMessage = ngWordReplacer.replaceNGWord(plainjapanizedMessage, "*");
+                    }
+                }else {
+                    Matcher nonJapanizedMatcher = nonJapanizedPattern.matcher(message);
+                    if(nonJapanizedMatcher.find()){
+                        japanizedMessage = "";
+                    }else {
+                        japanizedMessage = LunaChatUtil.getJapanized(message, japanizeType, lunaChatAPI);
+                    }
+                }
+            }
+            String webhookMessage = message;
+            if(userJapanized){
+                webhookMessage = message + " (" + japanizedMessage + ")";
+            }
+            discordWebhookManager.publishDiscordWebhooks(channel,player,webhookMessage);
+            if (configurationManager.getDebugMode()) {
+                plugin.getLogger().info("[Debug] チャンネル\"" + channelName + "\"におけるプレイヤー " + playerName + " からのメッセージ\"" + trimColorCode(rawMessage) + "\"をDiscordに送信しました");
+            }
+        });
+    }
+
     public static String translateColorCode(String string){
         return string.replaceAll("&([0-9A-Fa-fK-Ok-oRr])","§$1");
     }
 
     private static String trimColorCode(String string){
-        return string.replaceAll("&([0-9A-Fa-fK-Ok-oRr])","");
+        return string.replaceAll("&([0-9A-Fa-fK-Ok-oRr])","")
+                .replaceAll("§([0-9A-Fa-fK-Ok-oRr])","");
     }
 }
