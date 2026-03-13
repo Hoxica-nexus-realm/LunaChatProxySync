@@ -89,7 +89,7 @@ public class DiscordWebhookManager {
                 e.printStackTrace();
             }
         }
-    };
+    }
 
     private String getEscapedString(String string) {
         if(string == null){
