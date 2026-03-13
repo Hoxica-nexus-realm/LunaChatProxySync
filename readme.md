@@ -44,20 +44,31 @@
 ## ⚙️ 設定
 
 初回起動時に `plugins/LunaChatProxySync/config.yml` が生成されます。
-
+以下は生成されるconfig.ymlの内容です(コメント省略済み)
 ```yaml
 sync-channels:
   - "hoge"
   - "fuga"
-
-debug-mode: false
+discord:
+  enabled: false
+  webhooks: {"hoge":["webhookUrl1","webhookUrl2"],"fuga":["webhookUrl"]}
+  allow-mentions: false
+advanced:
+  debug-mode: false
+chat-event-priority: LOWEST
 ```
 
 ### 設定項目の説明
 
 - **sync-channels**: 同期対象のチャンネル名をリスト形式で指定します。  
   例: `"global"` チャンネルを同期対象にすると、どのサーバーで `global` に投稿されたメッセージもプレイヤーが存在する全サーバーの `global` チャンネルに転送されます。
-- **debug-mode**: 転送がうまく動作しない場合などに有効にすると、デバッグ情報がログに出力されます。
+- **discord**: Discordへのチャット転送の項目です。
+  * **enabled**: Discordへのチャット転送の有効/無効を切り替えます。
+  * **webhooks**: 転送するLunaChatチャンネルと転送に使用するWebhookのURLを記述します。一つのLunaChatチャンネルに対し複数のWebhookを設定することも可能です。
+  * **allow-mentions**: Webhook転送時に@everyone, @here, およびすべてのロール/ユーザーへのメンションを許可するかを切り替えます。
+- **adcanced**: 高度な設定です。
+  * **debug-mode**: 転送がうまく動作しない場合などに有効にすると、デバッグ情報がログに出力されます。
+  * **chat-event-priority**: チャットイベントを処理する順番を設定します。LunaChatよりも早い段階でLunaChatProxySyncがチャットイベントを取得する必要があります。
 
 > **注意**: 同期対象のチャンネルは**各バックエンドサーバーに存在している必要があります**。  
 > 存在しないチャンネルが指定されている場合、メッセージは転送されません。
@@ -71,6 +82,9 @@ debug-mode: false
 |----------|------|----------|
 | `/lcps help` | ヘルプを表示 | lcps.use |
 | `/lcps reload` | 設定ファイルをリロード | lcps.use |
+| `/tell`, `/t` | クロスサーバーDM | lcps.tell |
+| `/message`, `/msg`, `/m` | クロスサーバーDM | lcps.message |
+| `/reply`, `/r` | クロスサーバーDMのリプライ | lcps.reply |
 
 ---
 
@@ -79,6 +93,8 @@ debug-mode: false
 | 権限ノード      | 説明 | デフォルト |
 |------------|------|------------|
 | `lcps.use` | リロードなどの管理コマンドを実行可能 | op |
+| `lcps.tell`, `lcps.message` | クロスサーバーDM用コマンドを実行可能 | true |
+| `lcps.reply` | クロスサーバーDMのリプライ用コマンドを実行可能 | true |
 
 ---
 
@@ -152,5 +168,3 @@ sync-channels:
 ## 📄 ライセンス
 
 [MIT ライセンス](LICENSE)
-
----
