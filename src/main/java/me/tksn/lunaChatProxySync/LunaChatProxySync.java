@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -56,6 +57,7 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
     private Listener playerQuitListener;
     private Listener directMessageCommandListener;
     private final Pattern nonJapanizedPattern = Pattern.compile("[^a-zA-Z0-9]{10,}");
+    private final Pattern finalNonJapanizedPattern = Pattern.compile("[^a-zA-Z0-9!-~]+");
     @Override
     public void onEnable(){
         Plugin lc = getServer().getPluginManager().getPlugin("LunaChat");
@@ -389,6 +391,16 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         }else{
             japanized = LunaChatUtil.getUserJapanized(player.getName(),lunaChatAPI);
         }
+        String replacedMessage = trimColorCode(rawMessage);
+        Matcher finalNonJapanizedMatcher = finalNonJapanizedPattern.matcher(replacedMessage);
+        if(finalNonJapanizedMatcher.find()){
+            japanized = false;
+        }
+        String channelName = channel.getName();
+        String playerName = player.getName();
+        if(configurationManager.getDiscordEnabled()){
+            PublishMessage.publishDiscordWebhook(configurationManager, lunaChatAPI, lunaChatConfigManager, channelName, playerName, rawMessage, this, japanized, japanizeType, ngWordReplacer, discordWebhookManager, nonJapanizedPattern);
+        }
         if(!configurationManager.getSyncChannels().contains(channel.getName())){
             return;
         }
@@ -415,11 +427,6 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
         out.write(data);
 
         event.getPlayer().sendPluginMessage(this, "BungeeCord", out.toByteArray());
-        String channelName = channel.getName();
-        String playerName = player.getName();
-        if(configurationManager.getDiscordEnabled()) {
-            PublishMessage.publishDiscordWebhook(configurationManager, lunaChatAPI, lunaChatConfigManager, channelName, playerName, rawMessage, this, japanized, japanizeType, ngWordReplacer, discordWebhookManager, nonJapanizedPattern);
-        }
     }
 
     private void forwardPrivateMessage(Player player, String target, String message){
@@ -433,7 +440,9 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
 
         ByteArrayDataOutput messageBytes = ByteStreams.newDataOutput();
         String debugLog;
-        boolean japanized = lunaChatAPI.isPlayerJapanize(player.getName()) && !message.startsWith(noneJapanizeMarker);
+        String replacedMessage = trimColorCode(message);
+        Matcher finalNonJapanizedMatcher = finalNonJapanizedPattern.matcher(replacedMessage);
+        boolean japanized = lunaChatAPI.isPlayerJapanize(player.getName()) && !message.startsWith(noneJapanizeMarker) && !finalNonJapanizedMatcher.find();
         if(message.startsWith(noneJapanizeMarker) && message.length() > 1){
             message = message.substring(1);
         }
@@ -703,5 +712,10 @@ public final class LunaChatProxySync extends JavaPlugin implements PluginMessage
             sendDebugMessage("PlayerCommandPreprocessEventのリスナーを登録しました");
             sendDebugMessage("Priority: LOWEST");
         }
+    }
+
+    private static String trimColorCode(String string){
+        return string.replaceAll("&([0-9A-Fa-fK-Ok-oRr])","")
+                .replaceAll("§([0-9A-Fa-fK-Ok-oRr])","");
     }
 }
