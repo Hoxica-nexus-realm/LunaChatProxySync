@@ -48,6 +48,7 @@ public class LunaChatConfigManager {
         globalMarker = config.getString("globalMarker");
         globalChannel = config.getString("globalChannel");
         noneJapanizeMarker = config.getString("noneJapanizeMarker");
+        ngWordPattern = new ArrayList<>();
         if(debugMode) {
             plugin.sendDebugMessage("グローバルマーカーは\"" + globalMarker + "\"です");
             plugin.sendDebugMessage("グローバルチャンネル名は\"" + globalChannel + "\"です");
