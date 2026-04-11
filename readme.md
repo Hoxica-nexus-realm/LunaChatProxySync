@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**LunaChatProxySync** は、プロキシサーバー（BungeeCord等）配下の複数のバックエンドサーバー間で、特定のLunaChatチャンネルのメッセージを同期するためのプラグインです。
+**LunaChatProxySync** は、プロキシサーバー（BungeeCordやVelocity等）配下の複数のバックエンドサーバー間で、特定のLunaChatチャンネルのメッセージを同期するためのプラグインです。
 
 ---
 
@@ -11,7 +11,7 @@
 通常、LunaChatのチャンネルチャットは同一サーバー内のみ、もしくは、プロキシ全体で有効です。  
 このプラグインは**特定のチャンネル**（例: グローバルチャンネル、スタッフチャンネルなど）に限定して、プロキシを越えたメッセージ同期を実現します。
 
-- プロキシ側にLunaChat（Bungee版）は**不要**
+- プロキシ側にLunaChat（Bungee版/Velocity移植版等）は**不要**
 - バックエンドサーバーのみに導入して動作
 - チャンネル単位で転送を制御できるため、サーバー間で共有したいチャットと分離したいチャットを明確に区別可能
 
@@ -23,7 +23,7 @@
 - 転送先では、そのサーバーのLunaChatチャンネルフォーマットに従って表示
 - **Japanize**（ローマ字→かな変換,ローマ字→かな変換→漢字変換）機能に対応（LunaChatの設定に依存）
 - **NGWordフィルター**にも対応（LunaChatのフィルターが適用された後のメッセージを転送）
-- 権限管理は **LuckPerms** を利用（LunaChatの権限設定と連携）
+- 権限管理は **LuckPerms** を利用（必須ではありません）
 
 ---
 
@@ -31,7 +31,7 @@
 
 - [LunaChat](https://github.com/ucchyocean/LunaChat)
 
-> **プロキシサーバー（BungeeCord）には追加のプラグインは不要です。**
+> **プロキシサーバー（BungeeCord/Velocity等）には追加のプラグインは不要です。**
 
 ---
 
@@ -155,7 +155,7 @@ sync-channels:
 - JapanizeやNGWordフィルターは**各転送先サーバーのLunaChatの設定**が適用されます。
 - 大規模サーバーでの使用時は、不要なチャンネルを同期対象に含めないよう注意してください（トラフィック増加の原因になります）。
 - すべてを転送できるわけではありません。一部機能は転送および転送先での利用ができません。
-- BungeeCordを前提として開発しているためVelocity等のプロキシでは動作しない可能性があります。
+- Velocityでは[BungeeBark](https://github.com/RoinujNosde/BungeeBark/)が必要になるかもしれません。
 
 ---
 
