@@ -32,7 +32,7 @@
 - [LunaChat](https://github.com/ucchyocean/LunaChat)
 
 > **プロキシサーバー（BungeeCord等）には追加のプラグインは不要です。**  
-> *※[注意事項](http://github.com/Hoxica-nexus-realm/LunaChatProxySync#%EF%B8%8F-%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85)にも記載の通りVelocityの場合は[BungeeBark](https://github.com/RoinujNosde/BungeeBark/)が必要になるかもしれません。*
+> *※[注意事項](#%EF%B8%8F-%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85)にも記載の通りVelocityの場合は[BungeeBark](https://github.com/RoinujNosde/BungeeBark/)が必要になるかもしれません。*
 
 ---
 
