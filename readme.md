@@ -31,7 +31,8 @@
 
 - [LunaChat](https://github.com/ucchyocean/LunaChat)
 
-> **プロキシサーバー（BungeeCord/Velocity等）には追加のプラグインは不要です。**
+> **プロキシサーバー（BungeeCord等）には追加のプラグインは不要です。**  
+> *※[注意事項](http://github.com/Hoxica-nexus-realm/LunaChatProxySync#%EF%B8%8F-%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85)にも記載の通りVelocityの場合は[BungeeBark](https://github.com/RoinujNosde/BungeeBark/)が必要になるかもしれません。*
 
 ---
 
@@ -71,8 +72,9 @@ advanced:
   * **chat-event-priority**: チャットイベントを処理する順番を設定します。LunaChatよりも早い段階でLunaChatProxySyncがチャットイベントを取得する必要があります。
 
 > **注意**: 同期対象のチャンネルは**各バックエンドサーバーに存在している必要があります**。  
-> 存在しないチャンネルが指定されている場合、メッセージは転送されません。
-> メッセージを転送するには少なくとも転送元・転送先ともに一人以上のプレイヤーが必要です。
+> 存在しないチャンネルが指定されている場合、メッセージは転送されません。  
+> プライベートチャットはプラグインがインストールされているすべてのサーバーに対して有効です。  
+> メッセージを転送するには少なくとも転送元・転送先ともに一人以上のプレイヤーが必要です。  
 
 ---
 
